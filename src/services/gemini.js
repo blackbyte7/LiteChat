@@ -1,13 +1,16 @@
-import { loadApiKeys } from './storage';
+// src/services/gemini.js
+import { loadApiKeys, loadModelParameters } from './storage';
 
 export const geminiModels = [
-    { id: 'gemini-pro', name: 'Gemini Pro', tokenLimit: 30000 },
-    { id: 'gemini-pro-vision', name: 'Gemini Pro Vision', tokenLimit: 12000, supportsImages: true }
+    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', tokenLimit: 30000, supportsImages: true  },
+    { id: 'gemini-2.0-pro-exp-02-05', name: 'Gemini 2.0 Pro', tokenLimit: 30000, supportsImages: true  },
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', tokenLimit: 12000, supportsImages: true }
 ];
 
-export const sendGeminiMessage = async (messages, model = 'gemini-pro') => {
+export const sendGeminiMessage = async (messages, model = 'gemini-2.0-flash') => {
     const keys = await loadApiKeys();
     const apiKey = keys.gemini;
+    const parameters = await loadModelParameters();
 
     if (!apiKey) {
         throw new Error('Gemini API key not found. Please add it in the settings.');
@@ -71,8 +74,8 @@ export const sendGeminiMessage = async (messages, model = 'gemini-pro') => {
             body: JSON.stringify({
                 contents: formattedMessages,
                 generationConfig: {
-                    temperature: 0.7,
-                    maxOutputTokens: 2048
+                    temperature: parameters.gemini.temperature,
+                    maxOutputTokens: parameters.gemini.max_output_tokens
                 }
             })
         });

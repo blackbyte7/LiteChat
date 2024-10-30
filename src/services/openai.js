@@ -1,14 +1,16 @@
-import { loadApiKeys } from './storage';
+// src/services/openai.js
+import { loadApiKeys, loadModelParameters } from './storage';
 
 export const openaiModels = [
-    { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', tokenLimit: 4096 },
-    { id: 'gpt-4', name: 'GPT-4', tokenLimit: 8192 },
-    { id: 'gpt-4-vision-preview', name: 'GPT-4 Vision', tokenLimit: 128000, supportsImages: true }
+    { id: 'gpt-4o', name: 'GPT-4o', tokenLimit: 8192, supportsImages: true },
+    { id: 'gpt-4o-mini-2024-07-18', name: 'GPT-4o mini', tokenLimit: 8192, supportsImages: true },
+    { id: 'o3-mini', name: 'o3 Mini', tokenLimit: 128000, supportsImages: true }
 ];
 
 export const sendOpenAIMessage = async (messages, model = 'gpt-3.5-turbo') => {
     const keys = await loadApiKeys();
     const apiKey = keys.openai;
+    const parameters = await loadModelParameters();
 
     if (!apiKey) {
         throw new Error('OpenAI API key not found. Please add it in the settings.');
@@ -57,7 +59,11 @@ export const sendOpenAIMessage = async (messages, model = 'gpt-3.5-turbo') => {
             body: JSON.stringify({
                 model: model,
                 messages: formattedMessages,
-                temperature: 0.7
+                temperature: parameters.openai.temperature,
+                max_tokens: parameters.openai.max_tokens,
+                top_p: parameters.openai.top_p,
+                frequency_penalty: parameters.openai.frequency_penalty,
+                presence_penalty: parameters.openai.presence_penalty
             })
         });
 

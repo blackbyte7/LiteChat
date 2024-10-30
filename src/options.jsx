@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     root.render(
         <ThemeProvider>
             <div style={{ padding: '20px' }}>
-                <h1>Universal LLM Chat Settings</h1>
+                <h1>LLM Chat Settings</h1>
                 <SettingsPanel />
             </div>
         </ThemeProvider>

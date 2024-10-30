@@ -1,15 +1,17 @@
-import { loadApiKeys } from './storage';
+// src/services/claude.js
+import { loadApiKeys, loadModelParameters } from './storage';
 
 export const claudeModels = [
-    { id: 'claude-2.1', name: 'Claude 2.1', tokenLimit: 100000 },
-    { id: 'claude-instant-1.2', name: 'Claude Instant', tokenLimit: 100000 },
-    { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', tokenLimit: 200000, supportsImages: true },
-    { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet', tokenLimit: 180000, supportsImages: true }
+    { id: 'claude-3-opus-latest', name: 'Claude 3 Opus', tokenLimit: 100000 },
+    { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet', tokenLimit: 100000, supportsImages: true  },
+    { id: 'claude-3-5-haiku-latest', name: 'Claude 3.5 Haiku', tokenLimit: 200000, supportsImages: true },
+    { id: 'claude-3-7-sonnet-latest', name: 'Claude 3.7 Sonnet', tokenLimit: 180000, supportsImages: true }
 ];
 
-export const sendClaudeMessage = async (messages, model = 'claude-2.1') => {
+export const sendClaudeMessage = async (messages, model = 'claude-3-5-sonnet-latest') => {
     const keys = await loadApiKeys();
     const apiKey = keys.claude;
+    const parameters = await loadModelParameters();
 
     if (!apiKey) {
         throw new Error('Claude API key not found. Please add it in the settings.');
@@ -18,12 +20,12 @@ export const sendClaudeMessage = async (messages, model = 'claude-2.1') => {
     const supportsImages = claudeModels.find(m => m.id === model)?.supportsImages || false;
 
     // Format conversation history for Claude API
-    let systemPrompt = '';
+    let systemPrompt = parameters.claude.system_prompt || '';
     let formattedMessages = [];
 
     messages.forEach(msg => {
         if (msg.role === 'system') {
-            systemPrompt += msg.content + '\n';
+            systemPrompt += (systemPrompt ? '\n' : '') + msg.content;
         } else {
             // Handle image attachments for Claude 3
             if (supportsImages && msg.image && msg.role === 'user') {
@@ -72,7 +74,10 @@ export const sendClaudeMessage = async (messages, model = 'claude-2.1') => {
             body: JSON.stringify({
                 model: model,
                 messages: formattedMessages,
-                max_tokens: 4000
+                max_tokens: parameters.claude.max_tokens,
+                temperature: parameters.claude.temperature,
+                top_p: parameters.claude.top_p,
+                top_k: parameters.claude.top_k
             })
         });
 
