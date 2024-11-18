@@ -1,106 +1,177 @@
-// src/services/gemini.js
 import { loadApiKeys, loadModelParameters } from './storage';
+import { geminiModels, GEMINI_API_BASE_URL } from '../constants';
 
-export const geminiModels = [
-    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', tokenLimit: 30000, supportsImages: true  },
-    { id: 'gemini-2.0-pro-exp-02-05', name: 'Gemini 2.0 Pro', tokenLimit: 30000, supportsImages: true  },
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', tokenLimit: 12000, supportsImages: true }
-];
-
-export const sendGeminiMessage = async (messages, model = 'gemini-2.0-flash') => {
-    const keys = await loadApiKeys();
-    const apiKey = keys.gemini;
-    const parameters = await loadModelParameters();
-
-    if (!apiKey) {
-        throw new Error('Gemini API key not found. Please add it in the settings.');
+/**
+ * Sends messages to the Gemini API and handles streaming responses.
+ *
+ * @param {Array<object>} messages - The conversation history.
+ * @param {string} model - The Gemini model ID to use.
+ * @param {Function} onChunk - Callback function to handle incoming stream chunks. It receives (chunkText).
+ * @param {Function} onComplete - Callback function when the stream is finished. It receives (finalData).
+ * @param {Function} onError - Callback function for errors during streaming. It receives (error).
+ */
+export const sendGeminiMessageStream = async (messages, model, onChunk, onComplete, onError) => {
+    let apiKey;
+    let parameters;
+    try {
+        const keys = await loadApiKeys();
+        apiKey = keys.gemini;
+        parameters = await loadModelParameters();
+    } catch (error) {
+        onError(new Error("Failed to load API keys or parameters."));
+        return;
     }
 
-    const supportsImages = geminiModels.find(m => m.id === model)?.supportsImages || false;
+    if (!apiKey) {
+        onError(new Error('Gemini API key not found. Please add it in the settings.'));
+        return;
+    }
 
-    // Format conversation history for Gemini API
+    const modelInfo = geminiModels.find(m => m.id === model);
+    const supportsImages = modelInfo?.supportsImages || false;
+
     let formattedMessages = [];
-    let systemPrompt = '';
+    let systemInstructions = [];
 
     messages.forEach(msg => {
         if (msg.role === 'system') {
-            systemPrompt += msg.content + '\n';
+            systemInstructions.push({ parts: [{ text: msg.content }] });
             return;
         }
 
-        // Mapping roles to Gemini format
         const role = msg.role === 'assistant' ? 'model' : 'user';
+        let parts = [];
 
-        // Handle images for vision model
+        if (msg.content) {
+            parts.push({ text: msg.content });
+        }
+
         if (supportsImages && msg.image && role === 'user') {
-            formattedMessages.push({
-                role: role,
-                parts: [
-                    { text: msg.content },
-                    { inline_data: {
-                            mime_type: msg.image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
-                            data: msg.image.split(',')[1]
-                        }
-                    }
-                ]
+            const mimeTypeMatch = msg.image.match(/^data:(image\/(?:jpeg|png|gif|webp));base64,/);
+            const mime_type = mimeTypeMatch ? mimeTypeMatch[1] : 'image/jpeg';
+
+            parts.push({
+                inline_data: {
+                    mime_type: mime_type,
+                    data: msg.image.split(',')[1]
+                }
             });
-        } else {
-            formattedMessages.push({
-                role: role,
-                parts: [{ text: msg.content }]
-            });
+        } else if (msg.image && !supportsImages) {
+            if (parts.length > 0 && parts[0].text) {
+                parts[0].text += "\n[Image attached, but this model version doesn't support images]";
+            } else {
+                parts.push({ text: "[Image attached, but this model version doesn't support images]" });
+            }
+        }
+        if (parts.length > 0) {
+            formattedMessages.push({ role: role, parts: parts });
         }
     });
 
-    // Add system prompt as a preamble for the first user message if it exists
-    if (systemPrompt && formattedMessages.length > 0) {
-        const firstUserIndex = formattedMessages.findIndex(msg => msg.role === 'user');
-        if (firstUserIndex >= 0) {
-            const firstUserMessage = formattedMessages[firstUserIndex];
-            formattedMessages[firstUserIndex] = {
-                ...firstUserMessage,
-                parts: [{ text: `${systemPrompt}\n\n${firstUserMessage.parts[0].text}` },
-                    ...(firstUserMessage.parts.slice(1))]
-            };
+    // Gemini requires alternating user/model roles, starting with user.
+    let filteredMessages = [];
+    let lastRole = null;
+    formattedMessages.forEach(msg => {
+        if (filteredMessages.length === 0 && msg.role !== 'user') {
+            return;
         }
+        if (msg.role !== lastRole) {
+            filteredMessages.push(msg);
+            lastRole = msg.role;
+        } else {
+            console.warn(`Skipping consecutive message from role: ${msg.role}`);
+            // filteredMessages[filteredMessages.length - 1] = msg;
+        }
+    });
+
+    // Ensure the last message is from 'user' for the API call
+    if (filteredMessages.length > 0 && filteredMessages[filteredMessages.length - 1].role !== 'user') {
+        console.warn("Last message not from user, potentially removing assistant's final response from history for API call.");
+        // filteredMessages.pop();
     }
 
+
+    const body = {
+        contents: filteredMessages,
+        generationConfig: {
+            temperature: parameters.gemini.temperature,
+            maxOutputTokens: parameters.gemini.max_output_tokens,
+            // topP: parameters.gemini.topP,
+            // topK: parameters.gemini.topK,
+        },
+        ...(systemInstructions.length > 0 && { systemInstruction: systemInstructions[0] })
+    };
+
+    const apiUrl = `${GEMINI_API_BASE_URL}${model}:streamGenerateContent?key=${apiKey}&alt=sse`;
+
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        const response = await fetch(apiUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                contents: formattedMessages,
-                generationConfig: {
-                    temperature: parameters.gemini.temperature,
-                    maxOutputTokens: parameters.gemini.max_output_tokens
-                }
-            })
+            body: JSON.stringify(body)
         });
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error?.message || 'Failed to get response from Gemini');
+            const errorText = await response.text();
+            let errorMessage = `API request failed with status ${response.status}`;
+            try {
+                const errorJson = JSON.parse(errorText);
+                errorMessage = errorJson.error?.message || errorMessage;
+            } catch {
+                errorMessage = `${errorMessage}: ${errorText.substring(0, 200)}`;
+            }
+            throw new Error(errorMessage);
         }
 
-        const data = await response.json();
+        // Process Gemini SSE stream
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let finalData = { tokenUsage: {}, model: model };
 
-        return {
-            content: data.candidates[0].content.parts[0].text,
-            role: 'assistant',
-            provider: 'gemini',
-            model: model,
-            timestamp: new Date().toISOString(),
-            tokenUsage: {
-                total: data.usageMetadata?.totalTokenCount || 0,
-                prompt: data.usageMetadata?.promptTokenCount || 0,
-                completion: data.usageMetadata?.candidatesTokenCount || 0
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            let eolIndex;
+            while ((eolIndex = buffer.indexOf('\n')) >= 0) {
+                const line = buffer.substring(0, eolIndex).trim();
+                buffer = buffer.substring(eolIndex + 1);
+
+                if (line.startsWith('data: ')) {
+                    const dataContent = line.substring(6).trim();
+                    try {
+                        const json = JSON.parse(dataContent);
+
+                        const textChunk = json.candidates?.[0]?.content?.parts?.[0]?.text;
+                        if (textChunk) {
+                            onChunk(textChunk);
+                        }
+
+                        if (json.usageMetadata) {
+                            finalData.tokenUsage = {
+                                prompt: json.usageMetadata.promptTokenCount,
+                                completion: json.usageMetadata.candidatesTokenCount,
+                                total: json.usageMetadata.totalTokenCount,
+                            };
+                        }
+
+                    } catch (parseError) {
+                        console.warn('Failed to parse Gemini stream chunk JSON:', parseError, 'Chunk:', dataContent);
+                    }
+                }
             }
-        };
+        }
+        if (buffer.trim()) {
+            console.warn("Non-empty buffer remaining after Gemini stream:", buffer);
+        }
+        onComplete(finalData);
     } catch (error) {
-        console.error('Gemini API error:', error);
-        throw error;
+        console.error('Gemini API streaming error:', error);
+        onError(error);
     }
 };
