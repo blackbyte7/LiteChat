@@ -1,14 +1,15 @@
-import { useContext, useState } from 'react';
+import { useContext, useState, useRef, useEffect } from 'react';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { ChatContext } from '../contexts/ChatContext';
-import { openaiModels } from '../services/openai';
-import { claudeModels } from '../services/claude';
-import { geminiModels } from '../services/gemini';
+import { openaiModels, claudeModels, geminiModels } from '../constants'; // Use constants
+import styles from './ChatControls.module.css';
 
 const ChatControls = () => {
     const { colors } = useContext(ThemeContext);
-    const { chats, activeChat, setActiveChat, createNewChat, deleteChat } = useContext(ChatContext);
+    const { chats, activeChatId, setActiveChat, createNewChat, deleteChat } = useContext(ChatContext);
     const [showMenu, setShowMenu] = useState(false);
+    const menuRef = useRef(null);
+    const buttonRef = useRef(null);
 
     const handleNewChat = (provider, model) => {
         createNewChat(provider, model);
@@ -16,100 +17,82 @@ const ChatControls = () => {
     };
 
     const handleDeleteChat = (e, chatId) => {
-        e.stopPropagation();
-        if (window.confirm('Are you sure you want to delete this chat?')) {
+        e.stopPropagation(); // Prevent chat selection when clicking delete
+
+        if (window.confirm(`Are you sure you want to delete this chat?`)) {
             deleteChat(chatId);
         }
     };
 
+    // Close menu if clicked outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (menuRef.current && !menuRef.current.contains(event.target) &&
+                buttonRef.current && !buttonRef.current.contains(event.target)) {
+                setShowMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const getModelDisplayName = (provider, modelId) => {
+        const models = provider === 'openai' ? openaiModels : provider === 'claude' ? claudeModels : geminiModels;
+        const model = models.find(m => m.id === modelId);
+        return model ? model.name : modelId;
+    };
+
     return (
-        <div className="chat-controls"
-             style={{
-                 padding: '16px',
-                 backgroundColor: colors.secondary,
-                 borderRight: `1px solid ${colors.border}`,
-                 width: '220px',
-                 display: 'flex',
-                 flexDirection: 'column'
-             }}
-        >
-            <div className="new-chat-container" style={{ position: 'relative' }}>
+        <div className={styles.chatControls}>
+            <div className={styles.newChatContainer}>
                 <button
+                    ref={buttonRef}
                     onClick={() => setShowMenu(!showMenu)}
-                    style={{
-                        backgroundColor: colors.primary,
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        padding: '10px',
-                        width: '100%',
-                        marginBottom: '16px',
-                        cursor: 'pointer'
-                    }}
+                    className={styles.newChatButton}
+                    aria-haspopup="true"
+                    aria-expanded={showMenu}
                 >
                     New Chat
                 </button>
 
                 {showMenu && (
-                    <div className="model-menu"
-                         style={{
-                             position: 'absolute',
-                             backgroundColor: colors.background,
-                             border: `1px solid ${colors.border}`,
-                             borderRadius: '8px',
-                             boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-                             zIndex: 10,
-                             width: '200px'
-                         }}
-                    >
-                        <div style={{ padding: '8px', borderBottom: `1px solid ${colors.border}` }}>
-                            <strong>OpenAI</strong>
+                    <div ref={menuRef} className={styles.modelMenu} role="menu">
+                        <div className={styles.providerSection}>
+                            <strong className={styles.providerTitle}>OpenAI</strong>
                             {openaiModels.map(model => (
                                 <div
                                     key={model.id}
+                                    role="menuitem"
                                     onClick={() => handleNewChat('openai', model.id)}
-                                    style={{
-                                        padding: '6px',
-                                        cursor: 'pointer',
-                                        borderRadius: '4px'
-                                    }}
-                                    className="model-option"
+                                    className={styles.modelOption}
                                 >
                                     {model.name}
                                 </div>
                             ))}
                         </div>
 
-                        <div style={{ padding: '8px', borderBottom: `1px solid ${colors.border}` }}>
-                            <strong>Claude</strong>
+                        <div className={styles.providerSection}>
+                            <strong className={styles.providerTitle}>Claude</strong>
                             {claudeModels.map(model => (
                                 <div
                                     key={model.id}
+                                    role="menuitem"
                                     onClick={() => handleNewChat('claude', model.id)}
-                                    style={{
-                                        padding: '6px',
-                                        cursor: 'pointer',
-                                        borderRadius: '4px'
-                                    }}
-                                    className="model-option"
+                                    className={styles.modelOption}
                                 >
                                     {model.name}
                                 </div>
                             ))}
                         </div>
 
-                        <div style={{ padding: '8px' }}>
-                            <strong>Gemini</strong>
+                        <div className={styles.providerSection}>
+                            <strong className={styles.providerTitle}>Gemini</strong>
                             {geminiModels.map(model => (
                                 <div
                                     key={model.id}
+                                    role="menuitem"
                                     onClick={() => handleNewChat('gemini', model.id)}
-                                    style={{
-                                        padding: '6px',
-                                        cursor: 'pointer',
-                                        borderRadius: '4px'
-                                    }}
-                                    className="model-option"
+                                    className={styles.modelOption}
                                 >
                                     {model.name}
                                 </div>
@@ -119,56 +102,34 @@ const ChatControls = () => {
                 )}
             </div>
 
-            <div className="chat-list"
-                 style={{
-                     flex: 1,
-                     overflowY: 'auto'
-                 }}
-            >
+            <div className={styles.chatList}>
                 {chats.map(chat => (
                     <div
                         key={chat.id}
                         onClick={() => setActiveChat(chat.id)}
-                        className={`chat-item ${chat.id === activeChat ? 'active' : ''}`}
-                        style={{
-                            padding: '10px',
-                            borderRadius: '6px',
-                            marginBottom: '6px',
-                            cursor: 'pointer',
-                            backgroundColor: chat.id === activeChat ? colors.primary + '22' : 'transparent',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                        }}
+                        className={`${styles.chatItem} ${chat.id === activeChatId ? styles.active : ''}`}
+                        role="button"
+                        tabIndex="0"
+                        aria-current={chat.id === activeChatId ? "page" : undefined}
                     >
-                        <div className="chat-title"
-                             style={{
-                                 overflow: 'hidden',
-                                 textOverflow: 'ellipsis',
-                                 whiteSpace: 'nowrap',
-                                 fontSize: '14px',
-                                 color: colors.text
-                             }}
-                        >
-                            {chat.title}
+                        <div className={styles.chatInfo}>
+                            <div className={styles.chatTitle}>{chat.title}</div>
+                            <div className={styles.chatModel}>
+                                {getModelDisplayName(chat.provider, chat.model)}
+                            </div>
                         </div>
                         <button
                             onClick={(e) => handleDeleteChat(e, chat.id)}
-                            style={{
-                                background: 'transparent',
-                                border: 'none',
-                                cursor: 'pointer',
-                                color: colors.text,
-                                opacity: 0.6,
-                                fontSize: '12px',
-                                padding: '4px'
-                            }}
-                            className="delete-button"
+                            className={styles.deleteButton}
+                            aria-label={`Delete chat: ${chat.title}`}
                         >
                             ×
                         </button>
                     </div>
                 ))}
+                {chats.length === 0 && (
+                    <div className={styles.noChatsMessage}>No chats yet. Start a new one!</div>
+                )}
             </div>
         </div>
     );

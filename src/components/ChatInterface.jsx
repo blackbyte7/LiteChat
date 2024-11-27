@@ -1,108 +1,177 @@
-import { useState, useRef, useContext, useEffect } from 'react';
+import { useState, useRef, useContext, useEffect, useCallback } from 'react';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { ChatContext } from '../contexts/ChatContext';
 import MessageBubble from './MessageBubble';
-import { sendOpenAIMessage } from '../services/openai';
-import { sendClaudeMessage } from '../services/claude';
-import { sendGeminiMessage } from '../services/gemini';
-import { estimateTokenCount } from '../utils/tokenCounter';
+import { sendOpenAIMessageStream } from '../services/openai';
+import { sendClaudeMessageStream } from '../services/claude';
+import { sendGeminiMessageStream } from '../services/gemini';
+import { estimateTokenCount } from '../utils/TokenCounter';
+import styles from './ChatInterface.module.css';
 
 const ChatInterface = () => {
     const { colors } = useContext(ThemeContext);
-    const { getActiveChat, addMessage, setLoading, loading } = useContext(ChatContext);
+    const {
+        getActiveChat,
+        addMessage,
+        updateStreamingMessage,
+        setLoading,
+        loading,
+        activeChatId
+    } = useContext(ChatContext);
+
     const [input, setInput] = useState('');
     const [selectedImage, setSelectedImage] = useState(null);
+    const [selectedImageName, setSelectedImageName] = useState('');
     const [tokenCount, setTokenCount] = useState(0);
+    const [error, setError] = useState(null);
+
     const imageInputRef = useRef(null);
     const messagesEndRef = useRef(null);
+    const textareaRef = useRef(null);
 
     const activeChat = getActiveChat();
 
+    // Auto-scroll effect
     useEffect(() => {
         scrollToBottom();
-    }, [activeChat?.messages]);
+    }, [activeChat?.messages?.length, activeChat?.messages[activeChat.messages.length -1]?.content]);
 
+
+    // Token counting effect
     useEffect(() => {
-        setTokenCount(estimateTokenCount(input));
+        let isMounted = true;
+        async function updateCount() {
+            const count = await estimateTokenCount(input);
+            if (isMounted) {
+                setTokenCount(count);
+            }
+        }
+        updateCount();
+        return () => { isMounted = false; };
     }, [input]);
+
+    // Adjust textarea height dynamically
+    useEffect(() => {
+        const textarea = textareaRef.current;
+        if (textarea) {
+            textarea.style.height = 'auto';
+            const scrollHeight = textarea.scrollHeight;
+            textarea.style.height = `${Math.min(scrollHeight, 200)}px`;
+        }
+    }, [input]);
+
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
-    const handleSendMessage = async () => {
-        if (!input.trim() && !selectedImage) return;
+    const handleSendMessage = useCallback(async () => {
+        if (loading || (!input.trim() && !selectedImage)) return;
+        if (!activeChat) {
+            setError("No active chat selected.");
+            return;
+        }
 
-        const activeChat = getActiveChat();
-        if (!activeChat) return;
+        setError(null);
+        setLoading(true);
 
         const userMessage = {
             role: 'user',
             content: input,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            image: selectedImage
         };
-
-        // Add image if selected
-        if (selectedImage) {
-            userMessage.image = selectedImage;
-        }
-
-        // Add message to chat
         addMessage(activeChat.id, userMessage);
+
+        const assistantMessagePlaceholder = {
+            role: 'assistant',
+            content: '',
+            provider: activeChat.provider,
+            model: activeChat.model,
+            timestamp: new Date().toISOString(),
+            streaming: true,
+        };
+        addMessage(activeChat.id, assistantMessagePlaceholder);
+        const assistantMessageIndex = activeChat.messages.length + 1;
+
         setInput('');
         setSelectedImage(null);
+        setSelectedImageName('');
         setTokenCount(0);
+        if (imageInputRef.current) imageInputRef.current.value = '';
 
-        setLoading(true);
+        // Streaming Logic
+        const messagesForApi = [...activeChat.messages, userMessage];
+
+        const handleChunk = (chunk) => {
+            updateStreamingMessage(activeChat.id, assistantMessageIndex, chunk);
+        };
+
+        const handleComplete = (finalData) => {
+            updateStreamingMessage(activeChat.id, assistantMessageIndex, '', true, finalData);
+            setLoading(false);
+        };
+
+        const handleError = (err) => {
+            console.error("API Error:", err);
+            const errorMessage = `Error: ${err.message || 'Failed to get response.'}`;
+            updateStreamingMessage(
+                activeChat.id,
+                assistantMessageIndex,
+                errorMessage,
+                true,
+                { error: true }
+            );
+            setError(errorMessage);
+            setLoading(false);
+        };
 
         try {
-            // Get all messages for context
-            const messages = [...activeChat.messages, userMessage];
-
-            let response;
-
-            // Call appropriate API based on provider
             switch (activeChat.provider) {
                 case 'openai':
-                    response = await sendOpenAIMessage(messages, activeChat.model);
+                    await sendOpenAIMessageStream(messagesForApi, activeChat.model, handleChunk, handleComplete, handleError);
                     break;
                 case 'claude':
-                    response = await sendClaudeMessage(messages, activeChat.model);
+                    await sendClaudeMessageStream(messagesForApi, activeChat.model, handleChunk, handleComplete, handleError);
                     break;
                 case 'gemini':
-                    response = await sendGeminiMessage(messages, activeChat.model);
+                    await sendGeminiMessageStream(messagesForApi, activeChat.model, handleChunk, handleComplete, handleError);
                     break;
                 default:
-                    throw new Error('Unknown provider');
+                    handleError(new Error(`Unknown provider: ${activeChat.provider}`));
             }
-
-            // Add assistant response to chat
-            addMessage(activeChat.id, response);
         } catch (error) {
-            // Handle error
-            addMessage(activeChat.id, {
-                role: 'system',
-                content: `Error: ${error.message}`,
-                timestamp: new Date().toISOString()
-            });
-        } finally {
-            setLoading(false);
+            handleError(error);
         }
-    };
+
+    }, [activeChat, input, selectedImage, loading, setLoading, addMessage, updateStreamingMessage, setError]);
 
     const handleFileSelect = (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
-        // Check if file is an image
         if (!file.type.startsWith('image/')) {
-            alert('Please select an image file');
+            alert('Please select a valid image file (JPEG, PNG, GIF, WEBP).');
             return;
         }
 
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Image size should not exceed 5MB.');
+            return;
+        }
+
+
         const reader = new FileReader();
-        reader.onload = (e) => {
-            setSelectedImage(e.target.result);
+        reader.onload = (event) => {
+            setSelectedImage(event.target.result);
+            setSelectedImageName(file.name);
+        };
+        reader.onerror = (error) => {
+            console.error("FileReader error:", error);
+            alert("Failed to read the image file.");
+            setSelectedImage(null);
+            setSelectedImageName('');
+            if (imageInputRef.current) imageInputRef.current.value = '';
         };
         reader.readAsDataURL(file);
     };
@@ -116,179 +185,103 @@ const ChatInterface = () => {
 
     const removeImage = () => {
         setSelectedImage(null);
+        setSelectedImageName('');
         if (imageInputRef.current) {
             imageInputRef.current.value = '';
         }
     };
 
     return (
-        <div className="chat-interface"
-             style={{
-                 display: 'flex',
-                 flexDirection: 'column',
-                 height: '500px',
-                 width: '100%',
-                 backgroundColor: colors.background,
-                 borderRadius: '8px',
-                 overflow: 'hidden'
-             }}
-        >
-            <div className="chat-header"
-                 style={{
-                     padding: '12px 16px',
-                     backgroundColor: colors.primary,
-                     color: '#fff',
-                     fontWeight: 'bold'
-                 }}
-            >
-                {activeChat?.title || 'New Chat'}
+        <div className={styles.chatInterface}>
+            <div className={styles.chatHeader}>
+                {activeChat?.title || 'Select a Chat'}
+                {activeChat && <span className={styles.headerModelInfo}>({activeChat.provider} / {activeChat.model})</span>}
             </div>
 
-            <div className="chat-messages"
-                 style={{
-                     flex: 1,
-                     padding: '16px',
-                     overflow: 'auto',
-                     display: 'flex',
-                     flexDirection: 'column'
-                 }}
-            >
+            <div className={styles.chatMessages}>
+                {!activeChat && (
+                    <div className={styles.noChatSelected}>
+                        Select a chat or start a new one to begin.
+                    </div>
+                )}
                 {activeChat?.messages.map((message, index) => (
                     <MessageBubble
-                        key={index}
+                        key={`${activeChat.id}-${index}`}
                         message={message}
                         chatId={activeChat.id}
                         index={index}
                     />
                 ))}
-                {loading && (
-                    <div className="loading-indicator"
-                         style={{
-                             alignSelf: 'flex-start',
-                             color: colors.text,
-                             padding: '8px',
-                             borderRadius: '8px',
-                             backgroundColor: colors.messageBg,
-                             marginBottom: '12px'
-                         }}
-                    >
-                        Thinking...
+                {loading && activeChat?.messages[activeChat.messages.length-1]?.streaming && (
+                    <div className={styles.streamingIndicator}> {/* Placeholder while streaming starts */}
+                        <div className={styles.dotFlashing}></div>
                     </div>
                 )}
                 <div ref={messagesEndRef} />
             </div>
 
+            {error && (
+                <div className={styles.errorMessage}>
+                    {error}
+                    <button onClick={() => setError(null)} className={styles.dismissErrorButton}>×</button>
+                </div>
+            )}
+
             {selectedImage && (
-                <div className="selected-image-container"
-                     style={{
-                         padding: '8px 16px',
-                         borderTop: `1px solid ${colors.border}`,
-                         position: 'relative'
-                     }}
-                >
+                <div className={styles.imagePreviewContainer}>
                     <img
                         src={selectedImage}
-                        alt="Selected"
-                        style={{
-                            maxHeight: '100px',
-                            maxWidth: '100%',
-                            borderRadius: '4px'
-                        }}
+                        alt={selectedImageName || 'Selected image'}
+                        className={styles.previewImage}
                     />
+                    <span className={styles.imageName}>{selectedImageName}</span>
                     <button
                         onClick={removeImage}
-                        style={{
-                            position: 'absolute',
-                            top: '10px',
-                            right: '18px',
-                            background: 'rgba(0,0,0,0.5)',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '50%',
-                            width: '20px',
-                            height: '20px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer'
-                        }}
+                        className={styles.removeImageButton}
+                        aria-label="Remove selected image"
                     >
                         ×
                     </button>
                 </div>
             )}
 
-            <div className="chat-input-container"
-                 style={{
-                     padding: '12px 16px',
-                     borderTop: `1px solid ${colors.border}`,
-                     backgroundColor: colors.secondary
-                 }}
-            >
-        <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type your message..."
-            rows={3}
-            style={{
-                width: '100%',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                border: `1px solid ${colors.border}`,
-                resize: 'none',
-                marginBottom: '8px',
-                backgroundColor: colors.inputBg,
-                color: colors.text
-            }}
-        />
-
-                <div className="input-actions"
-                     style={{
-                         display: 'flex',
-                         justifyContent: 'space-between',
-                         alignItems: 'center'
-                     }}
-                >
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <div className={styles.chatInputContainer}>
+                <textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Type your message (Shift+Enter for new line)..."
+                    className={styles.inputTextArea}
+                    rows={1}
+                    disabled={loading}
+                    aria-label="Chat message input"
+                />
+                <div className={styles.inputActions}>
+                    <div className={styles.actionButtonsLeft}>
                         <button
-                            onClick={() => imageInputRef.current.click()}
-                            className="attach-button"
-                            style={{
-                                backgroundColor: 'transparent',
-                                border: 'none',
-                                color: colors.primary,
-                                cursor: 'pointer'
-                            }}
+                            onClick={() => imageInputRef.current?.click()}
+                            className={styles.attachButton}
+                            disabled={loading}
+                            aria-label="Attach image"
                         >
-                            Attach Image
                         </button>
-
                         <input
                             type="file"
                             ref={imageInputRef}
                             onChange={handleFileSelect}
-                            accept="image/*"
+                            accept="image/jpeg, image/png, image/gif, image/webp"
                             style={{ display: 'none' }}
                         />
-
-                        <span style={{ fontSize: '12px', color: colors.text }}>
-              Tokens: {tokenCount}
-            </span>
+                        <span className={styles.tokenCounter} aria-live="polite">
+                            Tokens: {tokenCount}
+                        </span>
                     </div>
-
                     <button
                         onClick={handleSendMessage}
                         disabled={loading || (!input.trim() && !selectedImage)}
-                        style={{
-                            backgroundColor: colors.primary,
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '8px',
-                            padding: '8px 16px',
-                            cursor: 'pointer',
-                            opacity: loading || (!input.trim() && !selectedImage) ? 0.7 : 1
-                        }}
+                        className={styles.sendButton}
+                        aria-label="Send message"
                     >
                         Send
                     </button>

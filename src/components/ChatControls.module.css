@@ -1,0 +1,157 @@
+.chatControls {
+    padding: 16px 8px 16px 16px;
+    background-color: var(--color-secondary);
+    border-right: 1px solid var(--color-border);
+    width: 240px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.newChatContainer {
+    position: relative;
+    margin-bottom: 16px;
+}
+
+.newChatButton {
+    background-color: var(--color-primary);
+    color: var(--color-button-text);
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    width: 100%;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.newChatButton:hover {
+    opacity: 0.9;
+}
+
+.modelMenu {
+    position: absolute;
+    background-color: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px var(--color-shadow);
+    z-index: 10;
+    width: 220px;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.providerSection {
+    padding: 8px;
+}
+.providerSection:not(:last-child) {
+    border-bottom: 1px solid var(--color-border);
+}
+
+
+.providerTitle {
+    display: block;
+    padding: 6px 8px;
+    font-size: 0.9em;
+    font-weight: 600;
+    color: var(--color-text);
+    opacity: 0.8;
+}
+
+.modelOption {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 0.95em;
+    color: var(--color-text);
+}
+
+.modelOption:hover {
+    background-color: var(--color-primary);
+    color: var(--color-button-text);
+}
+
+.chatList {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 8px;
+}
+
+.chatItem {
+    padding: 10px 12px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color var(--transition-fast);
+}
+
+.chatItem:hover {
+    background-color: rgba(var(--color-primary-rgb, 80, 130, 240), 0.1);
+}
+
+.chatItem.active {
+    background-color: rgba(var(--color-primary-rgb, 76, 130, 242), 0.2);
+    font-weight: 500;
+}
+
+.chatInfo {
+    overflow: hidden;
+    margin-right: 8px;
+}
+
+.chatTitle {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.95em;
+    color: var(--color-text);
+    line-height: 1.3;
+}
+
+.chatModel {
+    font-size: 0.8em;
+    color: var(--color-text);
+    opacity: 0.7;
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+
+.deleteButton {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text);
+    opacity: 0;
+    font-size: 1.3em;
+    padding: 0 4px;
+    line-height: 1;
+    transition: opacity var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.chatItem:hover .deleteButton,
+.deleteButton:focus {
+    opacity: 0.6;
+}
+
+.deleteButton:hover {
+    opacity: 1 !important;
+    color: var(--color-error-text);
+}
+
+.noChatsMessage {
+    text-align: center;
+    padding: 20px;
+    font-size: 0.9em;
+    color: var(--color-text);
+    opacity: 0.7;
+}
