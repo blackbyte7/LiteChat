@@ -1,45 +1,60 @@
-import { useState, useContext } from 'react';
+import { useState, useContext, useRef, useEffect } from 'react';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { ChatContext } from '../contexts/ChatContext';
 import CodeBlock from './CodeBlock';
+import { formatTimestamp } from '../utils/TokenCounter';
+import styles from './MessageBubble.module.css';
 
 const MessageBubble = ({ message, chatId, index }) => {
     const { colors } = useContext(ThemeContext);
     const { editMessage } = useContext(ChatContext);
     const [isEditing, setIsEditing] = useState(false);
     const [editedContent, setEditedContent] = useState(message.content);
-
+    const editInputRef = useRef(null);
     const isUser = message.role === 'user';
+    const isSystem = message.role === 'system';
+    const isAssistant = message.role === 'assistant';
 
-    // Process content to find code blocks
+    useEffect(() => {
+        if (isEditing && editInputRef.current) {
+            editInputRef.current.focus();
+            editInputRef.current.selectionStart = editInputRef.current.value.length;
+            editInputRef.current.selectionEnd = editInputRef.current.value.length;
+
+            adjustTextareaHeight(editInputRef.current);
+        }
+    }, [isEditing]);
+
+    const adjustTextareaHeight = (textarea) => {
+        if (textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = `${textarea.scrollHeight}px`;
+        }
+    };
+
     const processContent = (content) => {
-        if (!content) return [];
+        if (typeof content !== 'string' || !content) return [];
 
-        const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
+        const codeBlockRegex = /```(\w+)?\r?\n([\s\S]*?)\r?\n?```/g;
         let parts = [];
         let lastIndex = 0;
         let match;
 
         while ((match = codeBlockRegex.exec(content)) !== null) {
-            // Add text before code block
             if (match.index > lastIndex) {
                 parts.push({
                     type: 'text',
                     content: content.substring(lastIndex, match.index)
                 });
             }
-
-            // Add code block
             parts.push({
                 type: 'code',
-                language: match[1] || '',
+                language: match[1] || 'plaintext',
                 content: match[2]
             });
-
-            lastIndex = match.index + match[0].length;
+            lastIndex = codeBlockRegex.lastIndex;
         }
 
-        // Add remaining text
         if (lastIndex < content.length) {
             parts.push({
                 type: 'text',
@@ -51,90 +66,77 @@ const MessageBubble = ({ message, chatId, index }) => {
     };
 
     const handleEdit = () => {
+        if (!isUser) return;
+        setEditedContent(message.content);
         setIsEditing(true);
     };
 
     const handleSave = () => {
-        editMessage(chatId, index, editedContent);
+        if (!editedContent.trim()) return;
+        editMessage(chatId, index, editedContent.trim());
         setIsEditing(false);
     };
 
     const handleCancel = () => {
-        setEditedContent(message.content);
         setIsEditing(false);
+    };
+
+    const handleTextareaKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSave();
+        }
+        if (e.key === 'Escape') {
+            handleCancel();
+        }
     };
 
     const contentParts = processContent(message.content);
 
-    const getProviderLabel = () => {
-        switch (message.provider) {
-            case 'openai':
-                return 'OpenAI';
-            case 'claude':
-                return 'Claude';
-            case 'gemini':
-                return 'Gemini';
-            default:
-                return '';
-        }
-    };
+    const bubbleClasses = [
+        styles.messageBubble,
+        isUser ? styles.userMessage : styles.assistantMessage,
+        isSystem ? styles.systemMessage : '',
+        message.streaming ? styles.streaming : '',
+        message.error ? styles.errorMessageType : ''
+    ].join(' ');
+
 
     return (
-        <div className={`message-bubble ${isUser ? 'user-message' : 'assistant-message'}`}
-             style={{
-                 backgroundColor: isUser ? colors.userMessageBg : colors.messageBg,
-                 color: colors.text,
-                 borderRadius: '8px',
-                 padding: '12px 16px',
-                 marginBottom: '12px',
-                 maxWidth: '85%',
-                 alignSelf: isUser ? 'flex-end' : 'flex-start',
-                 position: 'relative'
-             }}
-        >
-            {!isUser && message.model && (
-                <div className="model-label"
-                     style={{
-                         fontSize: '11px',
-                         color: '#888',
-                         marginBottom: '6px'
-                     }}
-                >
-                    {getProviderLabel()} - {message.model}
-                </div>
-            )}
+        <div className={bubbleClasses}>
+            <div className={styles.messageHeader}>
+                <span className={styles.senderLabel}>
+                    {isAssistant && message.model ? `Assistant (${message.model})` : isUser ? 'You' : isSystem ? 'System' : ''}
+                 </span>
+                <span className={styles.timestamp} title={new Date(message.timestamp).toLocaleString()}>
+                    {formatTimestamp(message.timestamp)}
+                 </span>
+            </div>
 
             {isEditing ? (
-                <div className="message-edit">
-          <textarea
-              value={editedContent}
-              onChange={(e) => setEditedContent(e.target.value)}
-              style={{
-                  width: '100%',
-                  minHeight: '100px',
-                  backgroundColor: colors.inputBg,
-                  color: colors.text,
-                  border: `1px solid ${colors.border}`,
-                  borderRadius: '4px',
-                  padding: '8px',
-                  marginBottom: '8px',
-                  resize: 'vertical'
-              }}
-          />
-                    <div className="edit-actions" style={{ display: 'flex', gap: '8px' }}>
-                        <button onClick={handleSave} className="save-button">Save</button>
-                        <button onClick={handleCancel} className="cancel-button">Cancel</button>
+                <div className={styles.messageEdit}>
+                    <textarea
+                        ref={editInputRef}
+                        value={editedContent}
+                        onChange={(e) => {
+                            setEditedContent(e.target.value);
+                            adjustTextareaHeight(e.target);
+                        }}
+                        onKeyDown={handleTextareaKeyDown}
+                        className={styles.editTextArea}
+                        rows={1}
+                        aria-label="Edit message content"
+                    />
+                    <div className={styles.editActions}>
+                        <button onClick={handleSave} className={`${styles.editButton} ${styles.saveButton}`}>Save</button>
+                        <button onClick={handleCancel} className={`${styles.editButton} ${styles.cancelButton}`}>Cancel</button>
                     </div>
                 </div>
             ) : (
-                <div className="message-content">
+                <div className={styles.messageContent}>
                     {contentParts.map((part, i) => {
                         if (part.type === 'text') {
-                            return (
-                                <div key={i} style={{ whiteSpace: 'pre-wrap' }}>
-                                    {part.content}
-                                </div>
-                            );
+                            return <div key={i} style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>{part.content}</div>;
                         } else if (part.type === 'code') {
                             return <CodeBlock key={i} code={part.content} language={part.language} />;
                         }
@@ -142,44 +144,36 @@ const MessageBubble = ({ message, chatId, index }) => {
                     })}
 
                     {message.image && (
-                        <div className="message-image" style={{ marginTop: '8px' }}>
+                        <div className={styles.messageImageContainer}>
                             <img
                                 src={message.image}
                                 alt="Attached"
-                                style={{ maxWidth: '100%', borderRadius: '4px' }}
+                                className={styles.messageImage}
                             />
                         </div>
                     )}
 
-                    {message.edited && (
-                        <div className="edited-label" style={{ fontSize: '11px', color: '#888', marginTop: '4px' }}>
-                            (edited)
-                        </div>
-                    )}
+                    <div className={styles.messageFooter}>
+                        {message.edited && <span className={styles.editedLabel}>(edited)</span>}
+                        {isAssistant && message.tokenUsage && (message.tokenUsage.total > 0) && (
+                            <span className={styles.tokenUsage}>
+                                Tokens: {message.tokenUsage.total} (P:{message.tokenUsage.prompt}, C:{message.tokenUsage.completion})
+                            </span>
+                        )}
+                    </div>
 
-                    {message.tokenUsage && (
-                        <div className="token-usage" style={{ fontSize: '11px', color: '#888', marginTop: '4px' }}>
-                            Tokens: {message.tokenUsage.total} ({message.tokenUsage.prompt} prompt, {message.tokenUsage.completion} completion)
-                        </div>
-                    )}
+
                 </div>
             )}
 
-            {!isEditing && (
-                <div className="message-actions" style={{ position: 'absolute', top: '5px', right: '5px' }}>
+            {!isEditing && isUser && (
+                <div className={styles.messageActions}>
                     <button
                         onClick={handleEdit}
-                        className="edit-button"
-                        style={{
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: '#888',
-                            padding: '3px',
-                            fontSize: '12px',
-                        }}
+                        className={styles.actionButton}
+                        aria-label="Edit message"
                     >
-                        Edit
+                        ✏️
                     </button>
                 </div>
             )}

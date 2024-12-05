@@ -1,0 +1,19 @@
+@import './contexts/Theme.module.css';
+
+.popupRoot {
+    width: 100%;
+    height: 100%;
+    display: flex;
+}
+
+.popupBody {
+    margin: 0;
+    min-width: 500px;
+    max-width: 750px;
+    height: 600px;
+    overflow: hidden;
+}
+
+body {
+    margin: 0;
+}

@@ -2,259 +2,190 @@ import { useContext, useState, useEffect } from 'react';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { loadApiKeys, saveApiKeys } from '../services/storage';
 import ModelParametersPanel from './ModelParametersPanel';
+import styles from './SettingsPanel.module.css';
 
 const SettingsPanel = () => {
-    const { colors, toggleTheme, darkMode } = useContext(ThemeContext);
-    const [apiKeys, setApiKeys] = useState({
-        openai: '',
-        claude: '',
-        gemini: ''
-    });
-    const [isEditing, setIsEditing] = useState(false);
-    const [status, setStatus] = useState('');
-    const [activeTab, setActiveTab] = useState('general'); // general or parameters
+    const { toggleTheme, darkMode } = useContext(ThemeContext);
+    const [apiKeys, setApiKeys] = useState({ openai: '', claude: '', gemini: '' });
+    const [tempKeys, setTempKeys] = useState({ openai: '', claude: '', gemini: '' });
+    const [isEditingKeys, setIsEditingKeys] = useState(false);
+    const [status, setStatus] = useState({ message: '', type: '' });
+    const [activeTab, setActiveTab] = useState('general');
+    const [isLoading, setIsLoading] = useState(true);
+
 
     useEffect(() => {
+        let isMounted = true;
+        setIsLoading(true);
         loadApiKeys().then(keys => {
-            setApiKeys({
-                openai: keys.openai || '',
-                claude: keys.claude || '',
-                gemini: keys.gemini || ''
-            });
+            if (isMounted) {
+                setApiKeys(keys);
+                setTempKeys(keys);
+                setIsLoading(false);
+            }
+        }).catch(error => {
+            console.error("Failed to load API keys:", error);
+            if (isMounted) {
+                setStatus({ message: 'Error loading API keys.', type: 'error' });
+                setIsLoading(false);
+            }
         });
+        return () => { isMounted = false };
     }, []);
 
+    const handleEditKeys = () => {
+        setTempKeys(apiKeys);
+        setIsEditingKeys(true);
+        setStatus({ message: '', type: '' });
+    };
+
+    const handleCancelEdit = () => {
+        setIsEditingKeys(false);
+    };
+
     const handleSaveKeys = async () => {
+        setStatus({ message: 'Saving...', type: '' });
         try {
-            await saveApiKeys(apiKeys);
-            setStatus('API keys saved successfully');
-            setIsEditing(false);
-            setTimeout(() => setStatus(''), 3000);
+            await saveApiKeys(tempKeys);
+            setApiKeys(tempKeys);
+            setStatus({ message: 'API keys saved successfully.', type: 'success' });
+            setIsEditingKeys(false);
+            setTimeout(() => setStatus({ message: '', type: '' }), 3000);
         } catch (error) {
-            setStatus(`Error saving API keys: ${error.message}`);
+            console.error("Failed to save API keys:", error);
+            setStatus({ message: `Error saving API keys: ${error.message}`, type: 'error' });
         }
     };
 
     const maskApiKey = (key) => {
-        if (!key) return '';
-        if (key.length <= 8) return '*'.repeat(key.length);
-        return key.substring(0, 4) + '*'.repeat(key.length - 8) + key.substring(key.length - 4);
+        if (!key || typeof key !== 'string') return '';
+        if (key.length <= 8) return '********';
+        return `${key.substring(0, 4)}****${key.substring(key.length - 4)}`;
     };
 
-    return (
-        <div className="settings-panel"
-             style={{
-                 padding: '20px',
-                 backgroundColor: colors.background,
-                 color: colors.text,
-                 borderRadius: '8px',
-                 maxWidth: '500px',
-                 margin: '0 auto'
-             }}
-        >
-            <h2 style={{ marginTop: 0 }}>Settings</h2>
+    if (isLoading) {
+        return <div className={styles.loading}>Loading settings...</div>;
+    }
 
-            <div className="tabs" style={{ marginBottom: '15px', display: 'flex' }}>
+
+    return (
+        <div className={styles.settingsPanel}>
+            <h2 className={styles.settingsTitle}>Settings</h2>
+
+            <div className={styles.tabs}>
                 <button
                     onClick={() => setActiveTab('general')}
-                    style={{
-                        backgroundColor: activeTab === 'general' ? colors.primary : colors.secondary,
-                        color: activeTab === 'general' ? 'white' : colors.text,
-                        border: 'none',
-                        borderRadius: '4px 0 0 4px',
-                        padding: '8px 16px',
-                        cursor: 'pointer',
-                        flex: 1
-                    }}
+                    className={`${styles.tabButton} ${activeTab === 'general' ? styles.activeTab : ''}`}
+                    aria-selected={activeTab === 'general'}
+                    role="tab"
                 >
                     General
                 </button>
                 <button
                     onClick={() => setActiveTab('parameters')}
-                    style={{
-                        backgroundColor: activeTab === 'parameters' ? colors.primary : colors.secondary,
-                        color: activeTab === 'parameters' ? 'white' : colors.text,
-                        border: 'none',
-                        borderRadius: '0 4px 4px 0',
-                        padding: '8px 16px',
-                        cursor: 'pointer',
-                        flex: 1
-                    }}
+                    className={`${styles.tabButton} ${activeTab === 'parameters' ? styles.activeTab : ''}`}
+                    aria-selected={activeTab === 'parameters'}
+                    role="tab"
                 >
                     Model Parameters
                 </button>
             </div>
 
-            {activeTab === 'general' ? (
-                <>
-                    <div className="theme-toggle"
-                         style={{
-                             marginBottom: '20px'
-                         }}
-                    >
-                        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                            <span style={{ marginRight: '10px' }}>Theme:</span>
-                            <div
-                                style={{
-                                    width: '50px',
-                                    height: '24px',
-                                    backgroundColor: darkMode ? colors.secondary : colors.border,
-                                    borderRadius: '12px',
-                                    position: 'relative',
-                                    transition: 'background-color 0.3s'
-                                }}
-                                onClick={toggleTheme}
-                            >
+            <div className={styles.tabContent}>
+                {activeTab === 'general' ? (
+                    <div role="tabpanel" aria-labelledby="tab-general">
+                        <div className={styles.settingSection}>
+                            <h3 className={styles.settingTitle}>Appearance</h3>
+                            <label className={styles.themeToggleLabel}>
+                                <span className={styles.labelText}>Theme:</span>
                                 <div
-                                    style={{
-                                        width: '20px',
-                                        height: '20px',
-                                        borderRadius: '50%',
-                                        backgroundColor: darkMode ? colors.primary : '#ffffff',
-                                        position: 'absolute',
-                                        top: '2px',
-                                        left: darkMode ? '28px' : '2px',
-                                        transition: 'left 0.3s'
-                                    }}
-                                />
+                                    className={`${styles.themeSwitch} ${darkMode ? styles.switchDark : ''}`}
+                                    onClick={toggleTheme}
+                                    role="switch"
+                                    aria-checked={darkMode}
+                                    title={`Switch to ${darkMode ? 'Light' : 'Dark'} Mode`}
+                                >
+                                    <div className={styles.switchKnob} />
+                                </div>
+                                <span className={styles.themeName}>{darkMode ? 'Dark' : 'Light'}</span>
+                            </label>
+                        </div>
+                        <div className={styles.settingSection}>
+                            <div className={styles.sectionHeader}>
+                                <h3 className={styles.settingTitle}>API Keys</h3>
+                                {!isEditingKeys && (
+                                    <button onClick={handleEditKeys} className={styles.editButton}>Edit Keys</button>
+                                )}
                             </div>
-                            <span style={{ marginLeft: '10px' }}>{darkMode ? 'Dark' : 'Light'}</span>
-                        </label>
-                    </div>
 
-                    <div className="api-keys"
-                         style={{
-                             marginBottom: '20px'
-                         }}
-                    >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                            <h3 style={{ margin: 0 }}>API Keys</h3>
-                            <button
-                                onClick={() => setIsEditing(!isEditing)}
-                                style={{
-                                    backgroundColor: colors.primary,
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '4px',
-                                    padding: '6px 12px',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                {isEditing ? 'Cancel' : 'Edit Keys'}
-                            </button>
+                            {isEditingKeys ? (
+                                <div className={styles.apiKeysForm}>
+                                    <div className={styles.formGroup}>
+                                        <label htmlFor="openai-key" className={styles.keyLabel}>OpenAI API Key:</label>
+                                        <input
+                                            id="openai-key" type="password" autoComplete="off"
+                                            value={tempKeys.openai}
+                                            onChange={(e) => setTempKeys({ ...tempKeys, openai: e.target.value })}
+                                            className={styles.keyInput}
+                                        />
+                                    </div>
+                                    <div className={styles.formGroup}>
+                                        <label htmlFor="claude-key" className={styles.keyLabel}>Claude API Key:</label>
+                                        <input
+                                            id="claude-key" type="password" autoComplete="off"
+                                            value={tempKeys.claude}
+                                            onChange={(e) => setTempKeys({ ...tempKeys, claude: e.target.value })}
+                                            className={styles.keyInput}
+                                        />
+                                    </div>
+                                    <div className={styles.formGroup}>
+                                        <label htmlFor="gemini-key" className={styles.keyLabel}>Gemini API Key:</label>
+                                        <input
+                                            id="gemini-key" type="password" autoComplete="off"
+                                            value={tempKeys.gemini}
+                                            onChange={(e) => setTempKeys({ ...tempKeys, gemini: e.target.value })}
+                                            className={styles.keyInput}
+                                        />
+                                    </div>
+                                    <div className={styles.editActions}>
+                                        <button onClick={handleSaveKeys} className={styles.saveButton} disabled={status.message === 'Saving...'}>
+                                            {status.message === 'Saving...' ? 'Saving...' : 'Save Keys'}
+                                        </button>
+                                        <button onClick={handleCancelEdit} className={styles.cancelButton}>Cancel</button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className={styles.apiKeysDisplay}>
+                                    <p><strong>OpenAI:</strong> {apiKeys.openai ? maskApiKey(apiKeys.openai) : <span className={styles.notSet}>Not set</span>}</p>
+                                    <p><strong>Claude:</strong> {apiKeys.claude ? maskApiKey(apiKeys.claude) : <span className={styles.notSet}>Not set</span>}</p>
+                                    <p><strong>Gemini:</strong> {apiKeys.gemini ? maskApiKey(apiKeys.gemini) : <span className={styles.notSet}>Not set</span>}</p>
+                                    <p className={styles.storageNote}>
+                                        API keys are stored securely using chrome.storage.sync and sync across your devices.
+                                    </p>
+                                </div>
+                            )}
+
+                            {status.message && status.message !== 'Saving...' && (
+                                <div className={`${styles.statusMessage} ${styles[status.type]}`}>
+                                    {status.message}
+                                </div>
+                            )}
                         </div>
 
-                        {isEditing ? (
-                            <div className="api-keys-form">
-                                <div className="form-group" style={{ marginBottom: '12px' }}>
-                                    <label style={{ display: 'block', marginBottom: '6px' }}>OpenAI API Key:</label>
-                                    <input
-                                        type="password"
-                                        value={apiKeys.openai}
-                                        onChange={(e) => setApiKeys({ ...apiKeys, openai: e.target.value })}
-                                        style={{
-                                            width: '100%',
-                                            padding: '8px',
-                                            borderRadius: '4px',
-                                            border: `1px solid ${colors.border}`,
-                                            backgroundColor: colors.inputBg,
-                                            color: colors.text
-                                        }}
-                                    />
-                                </div>
-
-                                <div className="form-group" style={{ marginBottom: '12px' }}>
-                                    <label style={{ display: 'block', marginBottom: '6px' }}>Claude API Key:</label>
-                                    <input
-                                        type="password"
-                                        value={apiKeys.claude}
-                                        onChange={(e) => setApiKeys({ ...apiKeys, claude: e.target.value })}
-                                        style={{
-                                            width: '100%',
-                                            padding: '8px',
-                                            borderRadius: '4px',
-                                            border: `1px solid ${colors.border}`,
-                                            backgroundColor: colors.inputBg,
-                                            color: colors.text
-                                        }}
-                                    />
-                                </div>
-
-                                <div className="form-group" style={{ marginBottom: '12px' }}>
-                                    <label style={{ display: 'block', marginBottom: '6px' }}>Gemini API Key:</label>
-                                    <input
-                                        type="password"
-                                        value={apiKeys.gemini}
-                                        onChange={(e) => setApiKeys({ ...apiKeys, gemini: e.target.value })}
-                                        style={{
-                                            width: '100%',
-                                            padding: '8px',
-                                            borderRadius: '4px',
-                                            border: `1px solid ${colors.border}`,
-                                            backgroundColor: colors.inputBg,
-                                            color: colors.text
-                                        }}
-                                    />
-                                </div>
-
-                                <button
-                                    onClick={handleSaveKeys}
-                                    style={{
-                                        backgroundColor: colors.primary,
-                                        color: 'white',
-                                        border: 'none',
-                                        borderRadius: '4px',
-                                        padding: '8px 16px',
-                                        cursor: 'pointer',
-                                        marginTop: '10px'
-                                    }}
-                                >
-                                    Save Keys
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="api-keys-display">
-                                <div style={{ marginBottom: '8px' }}>
-                                    <strong>OpenAI:</strong> {apiKeys.openai ? maskApiKey(apiKeys.openai) : 'Not set'}
-                                </div>
-                                <div style={{ marginBottom: '8px' }}>
-                                    <strong>Claude:</strong> {apiKeys.claude ? maskApiKey(apiKeys.claude) : 'Not set'}
-                                </div>
-                                <div style={{ marginBottom: '8px' }}>
-                                    <strong>Gemini:</strong> {apiKeys.gemini ? maskApiKey(apiKeys.gemini) : 'Not set'}
-                                </div>
-                            </div>
-                        )}
-
-                        {status && (
-                            <div className="status-message"
-                                 style={{
-                                     marginTop: '10px',
-                                     padding: '8px',
-                                     borderRadius: '4px',
-                                     backgroundColor: status.includes('Error') ? '#ffdddd' : '#ddffdd',
-                                     color: status.includes('Error') ? '#ff0000' : '#00aa00'
-                                 }}
-                            >
-                                {status}
-                            </div>
-                        )}
+                        <div className={styles.settingSection}>
+                            <h3 className={styles.settingTitle}>About LiteChat</h3>
+                            <p className={styles.aboutText}>
+                                A lightweight Chrome extension for interacting with multiple AI models (OpenAI, Claude, Gemini).
+                                Manage API keys and tune model parameters for a customized chat experience.
+                            </p>
+                        </div>
                     </div>
-
-                    <div className="about-section">
-                        <h3>About</h3>
-                        <p>
-                            LiteChat is a lightweight Chrome extension that allows you to interact with
-                            multiple language models including OpenAI&#39;s GPT, Anthropic&#39;s Claude, and Google&#39;s Gemini.
-                        </p>
-                        <p>
-                            Simply add your API keys in the settings and start chatting with your preferred models.
-                        </p>
+                ) : (
+                    <div role="tabpanel" aria-labelledby="tab-parameters">
+                        <ModelParametersPanel />
                     </div>
-                </>
-            ) : (
-                <ModelParametersPanel />
-            )}
+                )}
+            </div>
         </div>
     );
 };

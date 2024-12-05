@@ -1,0 +1,238 @@
+.settingsPanel {
+    /*
+     max-width: 600px;
+     margin: 0 auto
+  ; */
+}
+
+.settingsTitle {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 1.4em;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.tabs {
+    display: flex;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.tabButton {
+    flex: 1;
+    padding: 10px 16px;
+    cursor: pointer;
+    background-color: transparent;
+    color: var(--color-text);
+    opacity: 0.7;
+    border: none;
+    border-bottom: 3px solid transparent;
+    text-align: center;
+    font-weight: 500;
+    font-size: 1em;
+    transition: border-color var(--transition-fast), opacity var(--transition-fast), background-color var(--transition-fast);
+    border-radius: 0;
+}
+
+.tabButton:hover {
+    opacity: 1;
+    background-color: var(--color-secondary);
+}
+
+.tabButton.activeTab {
+    opacity: 1;
+    border-bottom-color: var(--color-primary);
+    font-weight: 600;
+}
+
+.tabContent {
+    padding-top: 10px;
+}
+
+.settingSection {
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+}
+.settingSection:not(:last-child) {
+    border-bottom: 1px solid var(--color-border);
+}
+
+
+.sectionHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.settingTitle {
+    margin: 0;
+    font-size: 1.15em;
+    font-weight: 500;
+}
+
+.themeToggleLabel {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    gap: 10px;
+    user-select: none;
+}
+
+.labelText {
+    font-weight: 500;
+}
+
+.themeSwitch {
+    width: 44px;
+    height: 24px;
+    background-color: var(--color-secondary-button-bg);
+    border-radius: 12px;
+    position: relative;
+    transition: background-color var(--transition-normal);
+    border: 1px solid var(--color-border);
+}
+
+.themeSwitch.switchDark {
+    background-color: var(--color-primary);
+}
+
+.switchKnob {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: #ffffff;
+    position: absolute;
+    top: 1px;
+    left: 2px;
+    transition: left var(--transition-normal), transform var(--transition-normal);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.themeSwitch.switchDark .switchKnob {
+    left: 20px;
+}
+
+.themeName {
+    font-size: 1em;
+    font-weight: 500;
+}
+
+.apiKeysForm {
+    margin-top: 10px;
+}
+
+.formGroup {
+    margin-bottom: 15px;
+}
+
+.keyLabel {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+    font-size: 0.95em;
+}
+
+.keyInput {
+    font-family: monospace;
+}
+
+.editActions {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+.editButton, .saveButton, .cancelButton {
+    padding: 6px 14px;
+    font-size: 0.9em;
+    border-radius: 4px;
+}
+
+.editButton {
+    background-color: var(--color-secondary-button-bg);
+    color: var(--color-secondary-button-text);
+    border: 1px solid var(--color-border);
+}
+.editButton:hover {
+    border-color: var(--color-text);
+}
+
+
+.saveButton {
+    background-color: var(--color-primary);
+    color: var(--color-button-text);
+    border: 1px solid var(--color-primary);
+}
+.saveButton:hover:not(:disabled) {
+    opacity: 0.9;
+}
+.saveButton:disabled {
+    background-color: var(--color-secondary-button-bg);
+    color: var(--color-secondary-button-text);
+    border-color: var(--color-border);
+    opacity: 0.7;
+}
+
+.cancelButton {
+    background-color: transparent;
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+}
+.cancelButton:hover {
+    background-color: var(--color-secondary);
+    border-color: var(--color-text);
+}
+
+
+.apiKeysDisplay p {
+    margin: 8px 0;
+    font-size: 0.95em;
+    line-height: 1.5;
+}
+.apiKeysDisplay strong {
+    font-weight: 500;
+    margin-right: 5px;
+    display: inline-block;
+    width: 60px;
+}
+
+.notSet {
+    color: var(--color-text);
+    opacity: 0.6;
+    font-style: italic;
+}
+
+.storageNote {
+    font-size: 0.85em !important;
+    color: var(--color-text);
+    opacity: 0.7;
+    margin-top: 15px !important;
+}
+
+.statusMessage {
+    margin-top: 15px;
+}
+.statusMessage.success {
+    background-color: var(--color-success-bg);
+    color: var(--color-success-text);
+}
+.statusMessage.error {
+    background-color: var(--color-error-bg);
+    color: var(--color-error-text);
+}
+
+.aboutText {
+    font-size: 0.95em;
+    color: var(--color-text);
+    opacity: 0.9;
+    line-height: 1.6;
+}
+
+.loading {
+    text-align: center;
+    padding: 30px;
+    font-style: italic;
+    opacity: 0.8;
+}
