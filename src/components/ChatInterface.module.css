@@ -233,7 +233,7 @@
 
 @keyframes dotFlashing {
     0% { background-color: var(--color-loading-spinner); }
-    50%, 100% { background-color: rgba(var(--color-loading-spinner-rgb, 76, 130, 242), 0.3);); }
+    50%, 100% { background-color: rgba(var(--color-loading-spinner, 76, 130, 242), 0.3); }
 }
 
 .errorMessage {

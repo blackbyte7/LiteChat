@@ -16,7 +16,7 @@ const ChatInterface = () => {
         updateStreamingMessage,
         setLoading,
         loading,
-        activeChatId
+        //activeChatId
     } = useContext(ChatContext);
 
     const [input, setInput] = useState('');
@@ -213,7 +213,7 @@ const ChatInterface = () => {
                     />
                 ))}
                 {loading && activeChat?.messages[activeChat.messages.length-1]?.streaming && (
-                    <div className={styles.streamingIndicator}> {/* Placeholder while streaming starts */}
+                    <div className={styles.streamingIndicator}>
                         <div className={styles.dotFlashing}></div>
                     </div>
                 )}

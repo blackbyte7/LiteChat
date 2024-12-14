@@ -1,7 +1,7 @@
 import { useContext, useState, useRef, useEffect } from 'react';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { ChatContext } from '../contexts/ChatContext';
-import { openaiModels, claudeModels, geminiModels } from '../constants'; // Use constants
+import { openaiModels, claudeModels, geminiModels } from '../constants';
 import styles from './ChatControls.module.css';
 
 const ChatControls = () => {
@@ -17,7 +17,7 @@ const ChatControls = () => {
     };
 
     const handleDeleteChat = (e, chatId) => {
-        e.stopPropagation(); // Prevent chat selection when clicking delete
+        e.stopPropagation();
 
         if (window.confirm(`Are you sure you want to delete this chat?`)) {
             deleteChat(chatId);

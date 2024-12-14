@@ -4,11 +4,11 @@ import { claudeModels, CLAUDE_API_URL } from '../constants';
 /**
  * Sends messages to the Claude API and handles streaming responses.
  *
- * @param {Array<object>} messages - The conversation history.
- * @param {string} model - The Claude model ID to use.
- * @param {Function} onChunk - Callback function to handle incoming stream chunks. It receives (chunkText).
- * @param {Function} onComplete - Callback function when the stream is finished. It receives (finalData).
- * @param {Function} onError - Callback function for errors during streaming. It receives (error).
+ * @param {Array<object>} messages
+ * @param {string} model
+ * @param {Function} onChunk
+ * @param {Function} onComplete
+ * @param {Function} onError
  */
 export const sendClaudeMessageStream = async (messages, model, onChunk, onComplete, onError) => {
     let apiKey;
@@ -123,7 +123,6 @@ export const sendClaudeMessageStream = async (messages, model, onChunk, onComple
 
                         switch (json.type) {
                             case 'message_start':
-                                // Extract initial message info if needed (like ID, model, usage)
                                 if (json.message?.usage) {
                                     finalData.tokenUsage = {
                                         prompt: json.message.usage.input_tokens,

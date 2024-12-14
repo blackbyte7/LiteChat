@@ -8,8 +8,8 @@
 
 .popupBody {
     margin: 0;
-    min-width: 500px;
-    max-width: 750px;
+    min-width: 750px;
+    max-width: 950px;
     height: 600px;
     overflow: hidden;
 }

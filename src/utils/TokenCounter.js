@@ -1,24 +1,35 @@
-import { getEncoding } from "tiktoken/lite/init";
-import cl100k_base from "tiktoken/encoders/cl100k_base.json";
-
 // Simple fallback tokenizer
 const fallbackEstimate = (text) => {
     if (!text) return 0;
-    // Very rough estimate: ~4 chars per token for English text
     return Math.ceil(text.length / 4);
 };
+export const estimateTokenCount = async (text) => {
+    //console.warn("Using fallback token estimation due to init error.");
+    return fallbackEstimate(text);
+};
 
+/*
 let encoding;
 
 // Asynchronously initialize the tokenizer
 const initializeEncoding = async () => {
     if (!encoding) {
+        console.log("Attempting to initialize tiktoken...");
         try {
             const model = await cl100k_base;
-            encoding = await getEncoding(model.name);
+            console.log("Tiktoken model data:", model); // Check model data
+            if (!model || !model.name) {
+                console.error("Model data or model.name is missing!");
+                throw new Error("Model data or model.name is missing!");
+            }
+            console.log("Using model name:", model.name);
+            // Make sure get_encoding is actually imported if it's not global
+            // import { get_encoding } from "tiktoken"; might be needed at top level? (already there)
+            encoding = await get_encoding(model.name);
+            console.log("Tiktoken encoding initialized successfully.");
         } catch (error) {
-            console.error("Failed to initialize tiktoken encoding:", error);
-            encoding = null;
+            console.error("Failed to initialize tiktoken encoding:", error); // Log the specific error
+            encoding = null; // Keep this
         }
     }
     return encoding;
@@ -26,11 +37,11 @@ const initializeEncoding = async () => {
 
 initializeEncoding();
 
-/**
+/!**
  * Estimates token count using tiktoken for OpenAI models, falls back to simple estimate.
  * @param {string} text The text to count tokens for.
  * @returns {Promise<number>} Estimated token count.
- */
+ *!/
 export const estimateTokenCount = async (text) => {
     if (!text) return 0;
 
@@ -48,6 +59,7 @@ export const estimateTokenCount = async (text) => {
         return fallbackEstimate(text);
     }
 };
+*/
 
 /**
  * Formats a date timestamp into a locale-specific time string.
